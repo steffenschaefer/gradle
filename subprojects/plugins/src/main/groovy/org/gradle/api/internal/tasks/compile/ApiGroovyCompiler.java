@@ -18,19 +18,25 @@ package org.gradle.api.internal.tasks.compile;
 
 import com.google.common.collect.Iterables;
 import groovy.lang.GroovyClassLoader;
+import org.codehaus.groovy.ast.ClassNode;
+import org.codehaus.groovy.ast.CompileUnit;
 import org.codehaus.groovy.control.CompilationUnit;
 import org.codehaus.groovy.control.CompilerConfiguration;
 import org.codehaus.groovy.control.messages.SimpleMessage;
 import org.codehaus.groovy.tools.javac.JavaAwareCompilationUnit;
 import org.codehaus.groovy.tools.javac.JavaCompiler;
+import org.codehaus.groovy.vmplugin.VMPluginFactory;
+import org.codehaus.groovy.vmplugin.v5.Java5;
 import org.gradle.api.internal.tasks.SimpleWorkResult;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.WorkResult;
+import org.gradle.internal.UncheckedException;
 import org.gradle.internal.classpath.DefaultClassPath;
 import org.gradle.internal.classloader.FilteringClassLoader;
 
 import java.io.File;
 import java.io.Serializable;
+import java.lang.reflect.Field;
 import java.net.URLClassLoader;
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,6 +51,24 @@ public class ApiGroovyCompiler implements Compiler<GroovyJavaJointCompileSpec>, 
     }
 
     public WorkResult execute(final GroovyJavaJointCompileSpec spec) {
+        try {
+            Field pluginField = VMPluginFactory.class.getDeclaredField("plugin");
+            pluginField.setAccessible(true);
+            pluginField.set(null, new Java5() {
+                @Override
+                public void configureClassNode(CompileUnit compileUnit, ClassNode classNode) {
+                    System.out.println("==> Configuring class node: " + classNode.getTypeClass());
+                    try {
+                        super.configureClassNode(compileUnit, classNode);
+                    } catch (Exception e) {
+                        throw new RuntimeException(String.format("Could not determine class information for %s", classNode.getTypeClass()));
+                    }
+                }
+            });
+        } catch (Exception e) {
+            throw UncheckedException.throwAsUncheckedException(e);
+        }
+
         CompilerConfiguration configuration = new CompilerConfiguration();
         configuration.setVerbose(spec.getGroovyCompileOptions().isVerbose());
         configuration.setSourceEncoding(spec.getGroovyCompileOptions().getEncoding());
