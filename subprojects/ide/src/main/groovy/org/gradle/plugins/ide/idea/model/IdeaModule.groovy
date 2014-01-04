@@ -18,6 +18,7 @@ package org.gradle.plugins.ide.idea.model
 
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.dsl.ConventionProperty
+import org.gradle.internal.reflect.Instantiator
 import org.gradle.plugins.ide.idea.model.internal.IdeaDependenciesProvider
 import org.gradle.util.ConfigureUtil
 
@@ -265,6 +266,8 @@ class IdeaModule {
      */
     final IdeaModuleIml iml
 
+    final DefaultIdeaFacetSet facets
+
     /**
      * Enables advanced configuration like tinkering with the output XML
      * or affecting the way existing *.iml content is merged with gradle build information.
@@ -273,6 +276,10 @@ class IdeaModule {
      */
     void iml(Closure closure) {
         ConfigureUtil.configure(closure, getIml())
+    }
+
+    void facets(Closure closure) {
+        ConfigureUtil.configure(closure, getFacets())
     }
 
     /**
@@ -318,9 +325,10 @@ class IdeaModule {
 
     Map<String, Collection<File>> singleEntryLibraries
 
-    IdeaModule(org.gradle.api.Project project, IdeaModuleIml iml) {
+    IdeaModule(org.gradle.api.Project project, IdeaModuleIml iml, Instantiator instantiator) {
         this.project = project
         this.iml = iml
+        this.facets = new DefaultIdeaFacetSet(instantiator);
     }
 
     void mergeXmlModule(Module xmlModule) {
@@ -334,9 +342,10 @@ class IdeaModule {
         def outputDir = getOutputDir() ? path(getOutputDir()) : null
         def testOutputDir = getTestOutputDir() ? path(getTestOutputDir()) : null
         Set dependencies = resolveDependencies()
+        Set facets = getFacets().collect { it.create(getPathFactory()) }
 
         xmlModule.configure(contentRoot, sourceFolders, testSourceFolders, excludeFolders,
-                getInheritOutputDirs(), outputDir, testOutputDir, dependencies, getJdkName())
+                getInheritOutputDirs(), outputDir, testOutputDir, dependencies, getJdkName(), facets)
 
         iml.whenMerged.execute(xmlModule)
     }

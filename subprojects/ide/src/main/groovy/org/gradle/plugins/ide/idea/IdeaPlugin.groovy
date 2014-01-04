@@ -18,6 +18,7 @@ package org.gradle.plugins.ide.idea
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaPlugin
+import org.gradle.api.plugins.WarPlugin
 import org.gradle.api.plugins.scala.ScalaBasePlugin
 import org.gradle.internal.reflect.Instantiator
 import org.gradle.plugins.ide.api.XmlFileContentMerger
@@ -56,6 +57,7 @@ class IdeaPlugin extends IdePlugin {
         configureIdeaModule(project)
         configureForJavaPlugin(project)
         configureForScalaPlugin()
+        configureForWarPlugin(project)
 
         hookDeduplicationToTheRoot(project)
     }
@@ -86,7 +88,7 @@ class IdeaPlugin extends IdePlugin {
     private configureIdeaModule(Project project) {
         def task = project.task('ideaModule', description: 'Generates IDEA module files (IML)', type: GenerateIdeaModule) {
             def iml = new IdeaModuleIml(xmlTransformer, project.projectDir)
-            module = instantiator.newInstance(IdeaModule, project, iml)
+            module = instantiator.newInstance(IdeaModule, project, iml, instantiator)
 
             model.module = module
 
@@ -137,6 +139,16 @@ class IdeaPlugin extends IdePlugin {
         project.plugins.withType(JavaPlugin) {
             configureIdeaProjectForJava(project)
             configureIdeaModuleForJava(project)
+        }
+    }
+
+    private configureForWarPlugin(Project project) {
+        project.plugins.withType(WarPlugin) { WarPlugin warPlugin ->
+            project.idea.module.facets.facet('Web', IdeaWebFacet) {
+                sourceRoots += project.sourceSets.main.allSource.srcDirs + project.sourceSets.main.resources.srcDirs
+                descriptor project.tasks.war.webXml ?: new File(project.convention.plugins.war.webAppDir, 'WEB-INF/web.xml'), 'web.xml'
+                webroot project.convention.plugins.war.webAppDir, '/'
+            }
         }
     }
 

@@ -69,6 +69,8 @@ class Module extends XmlPersistableConfigurationObject {
 
     String jdkName
 
+    Set<Facet> facets = [] as Set
+
     String getJavaVersion() {
         DeprecationLogger.nagUserOfReplacedMethod("javaVersion", "jdkName")
         jdkName
@@ -151,7 +153,7 @@ class Module extends XmlPersistableConfigurationObject {
     }
 
     protected def configure(Path contentPath, Set sourceFolders, Set testSourceFolders, Set excludeFolders,
-                            Boolean inheritOutputDirs, Path outputDir, Path testOutputDir, Set dependencies, String jdkName) {
+                            Boolean inheritOutputDirs, Path outputDir, Path testOutputDir, Set dependencies, String jdkName, Set<Facet> facets) {
         this.contentPath = contentPath
         this.sourceFolders.addAll(sourceFolders)
         this.testSourceFolders.addAll(testSourceFolders)
@@ -171,6 +173,7 @@ class Module extends XmlPersistableConfigurationObject {
         } else {
             this.jdkName = Module.INHERITED
         }
+        this.facets.addAll(facets)
     }
 
     @Override protected void store(Node xml) {
@@ -183,6 +186,8 @@ class Module extends XmlPersistableConfigurationObject {
 
         removeDependenciesFromXml()
         addDependenciesToXml()
+
+        writeFacetsToXml()
     }
 
     private addJdkToXml() {
@@ -271,6 +276,16 @@ class Module extends XmlPersistableConfigurationObject {
         ['module-library', 'module'].contains(orderEntry.@type)
     }
 
+    private writeFacetsToXml() {
+        if(facets.isEmpty()) {
+            return;
+        }
+        Node facetManager = findOrCreateFacetManager()
+        facets.each { Facet facet ->
+            facet.store(findOrCreateFacet(facetManager, facet.type, facet.name, facet.unique))
+        }
+    }
+
     private Node findContent() {
         findNewModuleRootManager().content[0]
     }
@@ -299,6 +314,21 @@ class Module extends XmlPersistableConfigurationObject {
         findNewModuleRootManager().orderEntry
     }
 
+    private Node findFacetManager() {
+        xml.component.find { it.@name == 'FacetManager'}
+    }
+
+    private Node findOrCreateFacetManager() {
+        return findFacetManager() ?: xml.appendNode('component', [name: 'FacetManager'])
+    }
+
+    private Node findFacet(Node facetManager, String type, String name, boolean unique) {
+        facetManager.find { it.@type == type && (unique || it.@name == name) }
+    }
+
+    private Node findOrCreateFacet(Node facetManager, String type, String name, boolean unique) {
+        return findFacet(facetManager, type, name, unique) ?: facetManager.appendNode('facet', [type: type, name: name])
+    }
 
     boolean equals(o) {
         if (this.is(o)) { return true }
